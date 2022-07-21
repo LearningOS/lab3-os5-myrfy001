@@ -9,10 +9,14 @@ use crate::sync::UPSafeCell;
 use alloc::collections::VecDeque;
 use alloc::sync::Arc;
 use lazy_static::*;
+use crate::timer::get_time_us;
 
 pub struct TaskManager {
     ready_queue: VecDeque<Arc<TaskControlBlock>>,
 }
+
+static mut ppp: usize = 0;
+static mut pppbuf: [usize;8] = [0;8];
 
 // YOUR JOB: FIFO->Stride
 /// A simple FIFO scheduler.
@@ -28,7 +32,40 @@ impl TaskManager {
     }
     /// Take a process out of the ready queue
     pub fn fetch(&mut self) -> Option<Arc<TaskControlBlock>> {
-        self.ready_queue.pop_front()
+
+        // return self.ready_queue.pop_front();
+
+        // let tt = self.ready_queue.pop_front();
+        // let task_to_run = tt.clone().unwrap();
+        // let mut inner = task_to_run.inner_exclusive_access();
+        // let t = inner.stride;
+        
+        // unsafe {
+        //     pppbuf[ppp] = task_to_run.pid.0;
+        //     ppp += 1;
+        //     if ppp == 8 {
+        //         ppp = 0;
+        //         println!("---{:?}", pppbuf);
+        //     }
+        // }
+        // debug!("p{} s{} p{} t{}", task_to_run.pid.0, t, inner.stride_pass.0, self.ready_queue.len());
+        // return tt;
+
+
+        if let Some((idx, task_to_run)) = self.ready_queue.iter().enumerate().min_by_key(|t| t.1.inner_exclusive_access().stride_pass) {
+
+            let mut inner = task_to_run.inner_exclusive_access();
+            let t = inner.stride;
+
+            // println!("pid={} stride={} pass={}  total = {}", task_to_run.pid.0, t, inner.stride_pass.0, self.ready_queue.len());
+
+            inner.stride_pass.step(t);
+
+            drop(inner);
+            self.ready_queue.remove(idx)
+        } else {
+            None
+        }
     }
 }
 
